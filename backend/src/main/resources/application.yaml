@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: sync-probe
+langchain4j:
+  google-ai-gemini:
+    chat-model:
+      api-key: ${GEMINI_API_KEY}
+      model-name: gemini-2.5-flash
+    embedding-model:
+      model-name: text-embedding-004
+
+
+
