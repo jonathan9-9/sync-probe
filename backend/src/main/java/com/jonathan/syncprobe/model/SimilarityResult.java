@@ -7,7 +7,7 @@ public class SimilarityResult {
     private String id;
 
     // doc metadata
-    private String chunkId;
+    private String docChunkId;
     private String docPath;
     private String docSectionTitle;
 
@@ -36,7 +36,37 @@ public class SimilarityResult {
         private double score;
 
         public RelatedMatch(){}
-    }
 
+        public RelatedMatch(String codePath, String codeSymbol, String codeChunkId, double score){
+            this.codePath = codePath;
+            this.codeSymbol = codeSymbol;
+            this.codeChunkId = codeChunkId;
+            this.score = score;
+        }
+        // getters/setters
+    }
+    public SimilarityResult(String id,
+                            String docChunkId,
+                            String docPath,
+                            String docSectionTitle,
+                            String codePath,
+                            String codeSymbol,
+                            String codeChunkId,
+                            double similarityScore,
+                            HealthStatus status,
+                            Instant analyzedAt
+                            ){
+        this.id = id;
+        this.docChunkId = docChunkId;
+        this.docPath = docPath;
+        this.docSectionTitle = docSectionTitle;
+        this.codeSymbol = codeSymbol;
+        this.codePath = codePath;
+        this.codeChunkId = codeChunkId;
+        this.similarityScore = similarityScore;
+        this.status = status;
+        this.analyzedAt = analyzedAt;
+    }
+    // getters/setters
 }
 
