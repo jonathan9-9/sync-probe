@@ -1,8 +1,13 @@
 package com.jonathan.syncprobe.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.Instant;
 import java.util.List;
 
+@Getter
+@Setter
 public class SimilarityResult {
     private String id;
 
@@ -43,7 +48,6 @@ public class SimilarityResult {
             this.codeChunkId = codeChunkId;
             this.score = score;
         }
-        // getters/setters
     }
     public SimilarityResult(String id,
                             String docChunkId,
@@ -67,6 +71,5 @@ public class SimilarityResult {
         this.status = status;
         this.analyzedAt = analyzedAt;
     }
-    // getters/setters
 }
 

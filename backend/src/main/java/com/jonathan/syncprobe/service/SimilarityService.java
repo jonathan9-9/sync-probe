@@ -14,7 +14,7 @@ public class SimilarityService {
     public void analyze(String codePath, String docPath) {
         String code = fileLoader.loadContent(codePath);
         String doc = fileLoader.loadContent(docPath);
-        // AI logic here...
+        // AI logic here including cosine similarity...
     }
 
 }

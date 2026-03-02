@@ -1,7 +1,12 @@
 package com.jonathan.syncprobe.model;
 
+import lombok.Getter;
+import lombok.Setter;
+
 import java.time.Instant;
 
+@Getter
+@Setter
 public class HealthScore {
     private String commitHash;
     private String repositoryName;
@@ -38,5 +43,4 @@ public class HealthScore {
         this.analyzedAt = analyzedAt;
 
     }
-
 }
