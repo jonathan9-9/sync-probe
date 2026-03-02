@@ -31,7 +31,7 @@ public class SimilarityResult {
         HEALTHY,
         AT_RISK,
         STALE,
-
+        SYNCING
     }
 
     public static class RelatedMatch{

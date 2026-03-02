@@ -6,14 +6,14 @@ import lombok.Setter;
 import java.time.Instant;
 import java.util.List;
 
+@Setter
+@Getter
 public class ScanResult {
     private String repositoryName;
-    @Setter
-    @Getter
     private String repoPath;
     private String commitHash;
     private Instant scannedAt;
-    private List<HealthScore> files;
+    private List<FileHealthStatus> files;
     private List<String> proposedFixes;
 
     public ScanResult(){}
@@ -21,7 +21,7 @@ public class ScanResult {
                       String repoPath,
                       String commitHash,
                       Instant scannedAt,
-                      List<HealthScore> files,
+                      List<FileHealthStatus> files,
                       List<String> proposedFixes
                       ) {
         this.repositoryName = repositoryName;
@@ -31,5 +31,6 @@ public class ScanResult {
         this.files = files;
         this.proposedFixes = proposedFixes;
     }
+
 
 }

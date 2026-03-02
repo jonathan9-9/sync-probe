@@ -3,6 +3,7 @@ package com.jonathan.syncprobe.service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+// computes cosine similarity and scoring
 @Service
 public class SimilarityService {
     private final FileLoader fileLoader;
