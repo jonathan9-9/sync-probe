@@ -28,6 +28,6 @@ public class ScanOrchestrator {
         this.suggestionService = suggestionService;
     }
     public ScanResult runScan(String repoUrl){
-
+        return null;
     }
 }
