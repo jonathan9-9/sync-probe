@@ -4,6 +4,9 @@ import com.jonathan.syncprobe.model.ScanResult;
 import com.jonathan.syncprobe.service.*;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
+import java.time.Instant;
+
 @Component
 public class ScanOrchestrator {
     private final GitRepoIngestionService repoIngestionService;
@@ -28,6 +31,22 @@ public class ScanOrchestrator {
         this.suggestionService = suggestionService;
     }
     public ScanResult runScan(String repoUrl){
-        return null;
+        Path repoPath = repoIngestionService.ingestRepository(repoUrl);
+
+        var docs = docIngestionService.parseDocs(repoPath);
+        var chunks = chunkingService.chunkAll(docs);
+        var embeddings = embeddingService.embedChunks(chunks);
+        var scores = similarityService.computeScores(chunks, embeddings);
+        var suggestions = suggestionService.generateFixes(scores);
+
+        String repoName = repoPath.getFileName() == null ? "" : repoPath.getFileName().toString();
+        return new ScanResult(
+                repoName,
+                repoPath.toString(),
+                null,
+                Instant.now(),
+                scores,
+                suggestions
+        );
     }
 }
