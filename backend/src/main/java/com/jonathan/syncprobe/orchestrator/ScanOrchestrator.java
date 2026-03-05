@@ -6,14 +6,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class ScanOrchestrator {
-    private final RepoIngestionService repoIngestionService;
+    private final GitRepoIngestionService repoIngestionService;
     private final DocIngestionService docIngestionService;
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
     private final SimilarityService similarityService;
     private final SuggestionService suggestionService;
 
-    public ScanOrchestrator(RepoIngestionService repoIngestionService,
+    public ScanOrchestrator(GitRepoIngestionService repoIngestionService,
                             DocIngestionService docIngestionService,
                             ChunkingService chunkingService,
                             EmbeddingService embeddingService,
