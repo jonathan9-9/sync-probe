@@ -21,7 +21,21 @@ public class GitUtils {
             throw new RuntimeException("Error cloning repository", e);
         }
     }
-    public static void pullLatest(Path repoDir){} // pull the latest changes
+    public static void pullLatest(Path repoDir){
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                    "git", "-C", repoDir.toString(), "pull"
+            );
+            pb.inheritIO();
+            Process process = pb.start();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new RuntimeException("Git pull failed");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to pull repository", e);
+        }
+    } // pull the latest changes
     public static boolean isGitRepository(Path dir){
         return Files.exists(dir.resolve(".git"));
     }
