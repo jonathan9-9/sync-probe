@@ -32,11 +32,7 @@ public class GitRepoIngestionService implements RepoIngestionService {
         }
     }
 
-    public Path cloneRepo(String repoUrl) {
-        return ingestRepository(repoUrl);
-    }
-
-    public String extractRepoName(String repoUrl){
+    private String extractRepoName(String repoUrl){
         String[] parts = repoUrl.split("/");
         String lastPart = parts[parts.length - 1];
         return lastPart.replace(".git", "");

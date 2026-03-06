@@ -14,7 +14,7 @@ public class ScanResult {
     private String commitHash;
     private Instant scannedAt;
     private List<FileHealthStatus> files;
-    private List<String> proposedFixes;
+    private List<Suggestion> proposedFixes;
 
     public ScanResult(){}
     public ScanResult(String repositoryName,
@@ -22,7 +22,7 @@ public class ScanResult {
                       String commitHash,
                       Instant scannedAt,
                       List<FileHealthStatus> files,
-                      List<String> proposedFixes
+                      List<Suggestion> proposedFixes
                       ) {
         this.repositoryName = repositoryName;
         this.repoPath = repoPath;
