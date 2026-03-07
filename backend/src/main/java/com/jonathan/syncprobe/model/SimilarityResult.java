@@ -34,6 +34,8 @@ public class SimilarityResult {
         SYNCING
     }
 
+    @Getter
+    @Setter
     public static class RelatedMatch{
         private String codePath;
         private String codeSymbol; // method or class name
@@ -72,4 +74,3 @@ public class SimilarityResult {
         this.analyzedAt = analyzedAt;
     }
 }
-

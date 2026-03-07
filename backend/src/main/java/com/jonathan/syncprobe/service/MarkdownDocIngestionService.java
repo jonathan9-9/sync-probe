@@ -13,16 +13,10 @@ import java.util.stream.Stream;
 @Service
 public class MarkdownDocIngestionService {
 
-    private final ChunkingService chunkingService;
-
-    public MarkdownDocIngestionService(ChunkingService chunkingService) {
-        this.chunkingService = chunkingService;
-    }
-
     public List<DocChunk> parseDocs(Path repoPath) {
-        List<DocChunk> allChunks = new ArrayList<>();
+        List<DocChunk> docs = new ArrayList<>();
 
-        if (repoPath == null || !Files.exists(repoPath)) return allChunks;
+        if (repoPath == null || !Files.exists(repoPath)) return docs;
 
         try (Stream<Path> paths = Files.walk(repoPath)) {
             paths.filter(Files::isRegularFile)
@@ -31,12 +25,8 @@ public class MarkdownDocIngestionService {
                         try {
                             String markdown = Files.readString(file);
                             String cleanedText = MarkdownUtils.stripMarkdown(markdown);
-
-                            // Split the file into multiple chunks with unique IDs
-                            List<DocChunk> fileChunks =
-                                    chunkingService.chunkDocument(file.toString(), cleanedText);
-
-                            allChunks.addAll(fileChunks);
+                            String docId = file + "-doc";
+                            docs.add(new DocChunk(file.toString(), docId, cleanedText));
 
                         } catch (IOException e) {
                             throw new RuntimeException("Failed to read doc file: " + file, e);
@@ -47,7 +37,7 @@ public class MarkdownDocIngestionService {
             throw new RuntimeException("Failed to scan repository at path: " + repoPath, e);
         }
 
-        return allChunks;
+        return docs;
     }
 
     private boolean isDocumentationFile(Path file) {

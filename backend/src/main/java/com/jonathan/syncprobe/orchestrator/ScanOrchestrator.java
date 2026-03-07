@@ -5,15 +5,12 @@ import com.jonathan.syncprobe.service.ChunkingService;
 import com.jonathan.syncprobe.service.EmbeddingService;
 import com.jonathan.syncprobe.service.GitRepoIngestionService;
 import com.jonathan.syncprobe.service.MarkdownDocIngestionService;
-import com.jonathan.syncprobe.service.SimilarityService;
 import com.jonathan.syncprobe.service.SuggestionService;
+import com.jonathan.syncprobe.vector.VectorStoreService;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class ScanOrchestrator {
@@ -22,7 +19,7 @@ public class ScanOrchestrator {
     private final MarkdownDocIngestionService markdownDocIngestionService;
     private final ChunkingService chunkingService;
     private final EmbeddingService embeddingService;
-    private final SimilarityService similarityService;
+    private final VectorStoreService vectorStoreService;
     private final SuggestionService suggestionService;
 
     public ScanOrchestrator(
@@ -30,14 +27,14 @@ public class ScanOrchestrator {
             MarkdownDocIngestionService markdownDocIngestionService,
             ChunkingService chunkingService,
             EmbeddingService embeddingService,
-            SimilarityService similarityService,
+            VectorStoreService vectorStoreService,
             SuggestionService suggestionService
     ) {
         this.repoIngestionService = repoIngestionService;
         this.markdownDocIngestionService = markdownDocIngestionService;
         this.chunkingService = chunkingService;
         this.embeddingService = embeddingService;
-        this.similarityService = similarityService;
+        this.vectorStoreService = vectorStoreService;
         this.suggestionService = suggestionService;
     }
 
@@ -49,33 +46,22 @@ public class ScanOrchestrator {
         // 2. Parse markdown docs
         List<DocChunk> docs = markdownDocIngestionService.parseDocs(repoPath);
 
-        // parseDocs already returns chunked docs, and DocChunk extends Chunk.
-        List<Chunk> chunks = new ArrayList<>(docs);
+        List<Chunk> chunks = chunkingService.chunkDocuments(docs);
 
-        // 4. Generate embeddings
         List<EmbeddingChunk> embeddings = embeddingService.embedChunks(chunks);
 
-        // 5. Compute similarity scores
-        List<double[]> vectors = embeddings.stream()
-                .map(EmbeddingChunk::getEmbedding)
-                .collect(Collectors.toList());
-        List<FileHealthStatus> scores = similarityService.computeScores(chunks, vectors);
+        vectorStoreService.store(embeddings);
 
-        // 6. Generate suggestions
-        List<Suggestion> suggestions = suggestionService.generateFixes(scores);
+        List<Chunk> staleDocs = vectorStoreService.findLowSimilarityChunks();
 
-        String repoName =
-                repoPath.getFileName() == null
-                        ? ""
-                        : repoPath.getFileName().toString();
+        List<Suggestion> suggestions = suggestionService.generateFixes(staleDocs);
 
-        return new ScanResult(
-                repoName,
-                repoPath.toString(),
-                null,
-                Instant.now(),
-                scores,
-                suggestions
-        );
+        return new ScanResult(suggestions);
+    }
+
+    public List<Suggestion> runQuery(String query) {
+        double[] queryEmbedding = embeddingService.embedText(query);
+        List<Chunk> relevantChunks = vectorStoreService.similaritySearch(queryEmbedding);
+        return suggestionService.generateFixes(relevantChunks);
     }
 }

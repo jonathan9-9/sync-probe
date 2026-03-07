@@ -1,7 +1,6 @@
 package com.jonathan.syncprobe.service;
 
-import com.jonathan.syncprobe.model.FileHealthStatus;
-import com.jonathan.syncprobe.model.SimilarityResult;
+import com.jonathan.syncprobe.model.Chunk;
 import com.jonathan.syncprobe.model.Suggestion;
 import org.springframework.stereotype.Service;
 
@@ -11,19 +10,20 @@ import java.util.List;
 // Google AI Agent
 @Service
 public class SuggestionService {
-    public List<Suggestion> generateFixes(List<FileHealthStatus> scores) {
+    public List<Suggestion> generateFixes(List<Chunk> staleDocs) {
         List<Suggestion> suggestions = new ArrayList<>();
-        if (scores == null || scores.isEmpty()) {
-            suggestions.add(new Suggestion("No scores available. Ensure docs were parsed and chunked correctly."));
+        if (staleDocs == null || staleDocs.isEmpty()) {
+            suggestions.add(new Suggestion("No stale documentation chunks detected."));
             return suggestions;
         }
 
-        for (FileHealthStatus score : scores) {
-            if (score.getStatus() == SimilarityResult.HealthStatus.STALE) {
-                suggestions.add(new Suggestion("Documentation appears stale. Update docs to match recent code behavior."));
-            } else if (score.getStatus() == SimilarityResult.HealthStatus.AT_RISK) {
-                suggestions.add(new Suggestion("Review low-similarity sections and align docs with implementation details."));
-            }
+        for (Chunk staleDoc : staleDocs) {
+            if (staleDoc == null) continue;
+            String path = staleDoc.getPath() == null || staleDoc.getPath().isBlank() ? "unknown-file" : staleDoc.getPath();
+            String chunkId = staleDoc.getId() == null || staleDoc.getId().isBlank() ? "unknown-chunk" : staleDoc.getId();
+            suggestions.add(new Suggestion(
+                    "Low-similarity doc chunk detected in " + path + " (" + chunkId + "). Review and update this section."
+            ));
         }
         return suggestions;
     }

@@ -13,22 +13,24 @@ public class ScanResult {
     private String repoPath;
     private String commitHash;
     private Instant scannedAt;
-    private List<FileHealthStatus> files;
     private List<Suggestion> proposedFixes;
 
     public ScanResult(){}
+    public ScanResult(List<Suggestion> proposedFixes) {
+        this.scannedAt = Instant.now();
+        this.proposedFixes = proposedFixes;
+    }
+
     public ScanResult(String repositoryName,
                       String repoPath,
                       String commitHash,
                       Instant scannedAt,
-                      List<FileHealthStatus> files,
                       List<Suggestion> proposedFixes
                       ) {
         this.repositoryName = repositoryName;
         this.repoPath = repoPath;
         this.commitHash = commitHash;
         this.scannedAt = scannedAt;
-        this.files = files;
         this.proposedFixes = proposedFixes;
     }
 
