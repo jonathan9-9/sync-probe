@@ -5,14 +5,15 @@ import com.jonathan.syncprobe.model.EmbeddingChunk;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
-import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
+import dev.langchain4j.store.embedding.filter.comparison.IsEqualTo;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,18 +23,18 @@ public class VectorStoreService {
     private static final double LOW_SIMILARITY_THRESHOLD = 0.55;
 
     private final EmbeddingStore<TextSegment> embeddingStore;
-    private final EmbeddingModel embeddingModel;
     private final Map<String, Chunk> chunkByEmbeddingId = new HashMap<>();
+    private final Map<String, String> embeddingIdByChunkId = new HashMap<>();
     private final Map<String, float[]> vectorByEmbeddingId = new HashMap<>();
     private final List<String> storedDocEmbeddingIds = new ArrayList<>();
 
-    public VectorStoreService(EmbeddingStore<TextSegment> embeddingStore, EmbeddingModel embeddingModel){
+    public VectorStoreService(EmbeddingStore<TextSegment> embeddingStore){
         this.embeddingStore = embeddingStore;
-        this.embeddingModel = embeddingModel;
     }
 
     public void store(List<EmbeddingChunk> embeddings) {
         chunkByEmbeddingId.clear();
+        embeddingIdByChunkId.clear();
         vectorByEmbeddingId.clear();
         storedDocEmbeddingIds.clear();
 
@@ -57,6 +58,9 @@ public class VectorStoreService {
             String embeddingId = embeddingStore.add(Embedding.from(vector), segment);
 
             chunkByEmbeddingId.put(embeddingId, chunk);
+            if (chunk.getId() != null && !chunk.getId().isBlank()) {
+                embeddingIdByChunkId.put(chunk.getId(), embeddingId);
+            }
             vectorByEmbeddingId.put(embeddingId, vector);
             if ("doc".equalsIgnoreCase(chunk.getType())) {
                 storedDocEmbeddingIds.add(embeddingId);
@@ -68,15 +72,11 @@ public class VectorStoreService {
         List<Chunk> lowSimilarityChunks = new ArrayList<>();
         for (String docEmbeddingId : storedDocEmbeddingIds) {
             float[] queryVector = vectorByEmbeddingId.get(docEmbeddingId);
-            if (queryVector == null || queryVector.length == 0) {
+            if (isEmptyVector(queryVector)) {
                 continue;
             }
 
-            EmbeddingSearchRequest request = EmbeddingSearchRequest.builder()
-                    .queryEmbedding(Embedding.from(queryVector))
-                    .maxResults(DEFAULT_SEARCH_RESULTS)
-                    .build();
-            List<EmbeddingMatch<TextSegment>> matches = embeddingStore.search(request).matches();
+            List<EmbeddingMatch<TextSegment>> matches = searchCodeMatches(queryVector, DEFAULT_SEARCH_RESULTS);
 
             Double bestNeighborScore = null;
             for (EmbeddingMatch<TextSegment> match : matches) {
@@ -98,6 +98,41 @@ public class VectorStoreService {
             }
         }
         return lowSimilarityChunks;
+    }
+
+    public List<Chunk> findRelatedCodeChunks(List<Chunk> docChunks, int maxResultsPerDoc) {
+        if (docChunks == null || docChunks.isEmpty()) {
+            return List.of();
+        }
+
+        int maxResults = maxResultsPerDoc <= 0 ? 3 : maxResultsPerDoc;
+        Map<String, Chunk> unique = new LinkedHashMap<>();
+        for (Chunk docChunk : docChunks) {
+            if (docChunk == null || docChunk.getId() == null) {
+                continue;
+            }
+            String embeddingId = embeddingIdByChunkId.get(docChunk.getId());
+            if (embeddingId == null) {
+                continue;
+            }
+            float[] docVector = vectorByEmbeddingId.get(embeddingId);
+            if (isEmptyVector(docVector)) {
+                continue;
+            }
+
+            List<EmbeddingMatch<TextSegment>> matches = searchCodeMatches(docVector, maxResults);
+            for (EmbeddingMatch<TextSegment> match : matches) {
+                if (match == null || match.embeddingId() == null) {
+                    continue;
+                }
+                Chunk chunk = chunkByEmbeddingId.get(match.embeddingId());
+                if (chunk != null) {
+                    String key = chunk.getId() == null ? match.embeddingId() : chunk.getId();
+                    unique.putIfAbsent(key, chunk);
+                }
+            }
+        }
+        return new ArrayList<>(unique.values());
     }
 
     public List<Chunk> similaritySearch(double[] queryEmbedding) {
@@ -124,14 +159,6 @@ public class VectorStoreService {
         return chunks;
     }
 
-    public List<Chunk> similaritySearch(String query) {
-        if (query == null || query.isBlank()) {
-            return List.of();
-        }
-        double[] vector = toDoubleArray(embeddingModel.embed(query).content().vector());
-        return similaritySearch(vector);
-    }
-
     private float[] toFloatArray(double[] vector) {
         float[] values = new float[vector.length];
         for (int i = 0; i < vector.length; i++) {
@@ -140,12 +167,17 @@ public class VectorStoreService {
         return values;
     }
 
-    private double[] toDoubleArray(float[] vector) {
-        double[] values = new double[vector.length];
-        for (int i = 0; i < vector.length; i++) {
-            values[i] = vector[i];
-        }
-        return values;
+    private boolean isEmptyVector(float[] vector) {
+        return vector == null || vector.length == 0;
+    }
+
+    private List<EmbeddingMatch<TextSegment>> searchCodeMatches(float[] queryVector, int maxResults) {
+        EmbeddingSearchRequest request = EmbeddingSearchRequest.builder()
+                .queryEmbedding(Embedding.from(queryVector))
+                .maxResults(maxResults)
+                .filter(new IsEqualTo("chunkType", "code"))
+                .build();
+        return embeddingStore.search(request).matches();
     }
 
     private String safe(String value) {
