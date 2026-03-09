@@ -28,6 +28,18 @@ public class MarkdownDocIngestionService {
                             String docId = file + "-doc";
                             docs.add(new DocChunk(file.toString(), docId, cleanedText));
 
+                            List<String> codeBlocks = MarkdownUtils.extractCodeBlocks(markdown);
+                            for (int i = 0; i < codeBlocks.size(); i++) {
+                                String block = codeBlocks.get(i).trim();
+                                if (block.isEmpty()) continue;
+                                DocChunk exampleChunk = new DocChunk(file.toString(),
+                                        file + "code-example" + i,
+                                        "[DOC-CODE-EXAMPLE]\n" + block
+                                        );
+                                exampleChunk.setSymbol("doc_code_block" + i);
+                                docs.add(exampleChunk);
+                            }
+
                         } catch (IOException e) {
                             throw new RuntimeException("Failed to read doc file: " + file, e);
                         }

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 // Google AI Agent
@@ -57,7 +58,7 @@ public class SuggestionService {
 
     private String buildPrompt(List<Chunk> staleDocs, List<Chunk> relatedCodeChunks) {
         String staleSection = staleDocs.stream()
-                .filter(chunk -> chunk != null)
+                .filter(Objects::nonNull)
                 .map(chunk -> formatChunk("DOC", chunk))
                 .collect(Collectors.joining("\n\n"));
 

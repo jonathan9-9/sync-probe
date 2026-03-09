@@ -7,8 +7,8 @@ import java.util.regex.Pattern;
 
 public class MarkdownUtils {
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("(?s)```[\\w-]*\\R(.*?)```");
-    private static final Pattern IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\([^)]*\\)");
-    private static final Pattern LINK_PATTERN = Pattern.compile("\\[([^\\]]+)]\\([^)]*\\)");
+    private static final Pattern IMAGE_PATTERN = Pattern.compile("!\\[[^]]*]\\([^)]*\\)");
+    private static final Pattern LINK_PATTERN = Pattern.compile("\\[([^]]+)]\\([^)]*\\)");
     private static final Pattern INLINE_CODE_PATTERN = Pattern.compile("`([^`]+)`");
     private static final Pattern HEADING_PATTERN = Pattern.compile("(?m)^\\s{0,3}#{1,6}\\s*");
     private static final Pattern BLOCKQUOTE_PATTERN = Pattern.compile("(?m)^\\s{0,3}>\\s?");
