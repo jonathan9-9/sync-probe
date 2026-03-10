@@ -1,7 +1,25 @@
 package com.jonathan.syncprobe.controller;
 
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-/** Handles the health status and result
- **/
+import java.time.Instant;
+import java.util.Map;
+
+/** Handles the health status and result */
+@RestController
+@RequestMapping("/health")
 public class HealthController {
+
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> health() {
+        return ResponseEntity.ok(
+                Map.of(
+                        "status", "UP",
+                        "timestamp", Instant.now().toString()
+                )
+        );
+    }
 }
