@@ -68,6 +68,9 @@ public class ScanOrchestrator {
         return new ScanResult(suggestions);
     }
 
+    /**
+     * to avoid full repo scan we instead run runQuery to retrieve relevant chunks
+     * */
     public List<Suggestion> runQuery(String query) {
         double[] queryEmbedding = embeddingService.embedText(query);
         List<Chunk> relevantChunks = vectorStoreService.similaritySearch(queryEmbedding);
