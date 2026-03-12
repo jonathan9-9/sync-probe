@@ -9,10 +9,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * Accepts repository url and triggers the analysis of source code files and doc
@@ -43,4 +40,10 @@ public class RepoController {
         var suggestions = scanOrchestrator.runQuery(request.query.trim());
         return ResponseEntity.ok(new SuggestionResponseDto(suggestions));
     }
+    @GetMapping("/hello")
+    public ResponseEntity<String>hello(){
+        return ResponseEntity.ok("Hello World!");
+    }
 }
+
+
