@@ -44,6 +44,10 @@ public class ScanOrchestrator {
     }
 
     public ScanResult runScan(String repoUrl) {
+        return runScan("default-scan", repoUrl);
+    }
+
+    public ScanResult runScan(String scanId, String repoUrl) {
 
         // 1. Clone repo
         Path repoPath = repoIngestionService.ingestRepository(repoUrl);
@@ -58,10 +62,10 @@ public class ScanOrchestrator {
 
         List<EmbeddingChunk> embeddings = embeddingService.embedChunks(chunks);
 
-        vectorStoreService.store(embeddings);
+        vectorStoreService.store(scanId, embeddings);
 
-        List<Chunk> staleDocs = vectorStoreService.findLowSimilarityChunks();
-        List<Chunk> relatedCodeChunks = vectorStoreService.findRelatedCodeChunks(staleDocs, 3);
+        List<Chunk> staleDocs = vectorStoreService.findLowSimilarityChunks(scanId);
+        List<Chunk> relatedCodeChunks = vectorStoreService.findRelatedCodeChunks(scanId, staleDocs, 3);
 
         List<Suggestion> suggestions = suggestionService.generateFixes(staleDocs, relatedCodeChunks);
 

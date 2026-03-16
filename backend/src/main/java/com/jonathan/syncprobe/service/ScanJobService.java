@@ -31,16 +31,16 @@ public class ScanJobService {
     }
 
     @Async("scanExecutor")
-    protected void runAsync(String id, String repoUrl) {
+    protected CompletableFuture<Void> runAsync(String id, String repoUrl) {
         try {
-            ScanResult result = scanOrchestrator.runScan(repoUrl);
+            ScanResult result = scanOrchestrator.runScan(id, repoUrl);
             resultById.put(id, result);
             statusById.put(id, ScanJobStatus.SUCCEEDED);
         } catch (Exception ex) {
             errorById.put(id, ex.getMessage());
             statusById.put(id, ScanJobStatus.FAILED);
         }
-        CompletableFuture.completedFuture(null);
+        return CompletableFuture.completedFuture(null);
     }
 
     public ScanJobStatus getStatus(String id) {

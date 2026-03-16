@@ -12,10 +12,11 @@ import dev.langchain4j.store.embedding.filter.comparison.IsEqualTo;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class VectorStoreService {
@@ -23,24 +24,25 @@ public class VectorStoreService {
     private static final double LOW_SIMILARITY_THRESHOLD = 0.55;
 
     private final EmbeddingStore<TextSegment> embeddingStore;
-    private final Map<String, Chunk> chunkByEmbeddingId = new HashMap<>();
-    private final Map<String, String> embeddingIdByChunkId = new HashMap<>();
-    private final Map<String, float[]> vectorByEmbeddingId = new HashMap<>();
-    private final List<String> storedDocEmbeddingIds = new ArrayList<>();
+    // keyed by scanId to isolate multi-user scans
+    private final Map<String, Map<String, Chunk>> chunkByEmbeddingIdByScan = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, String>> embeddingIdByChunkIdByScan = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, float[]>> vectorByEmbeddingIdByScan = new ConcurrentHashMap<>();
+    private final Map<String, List<String>> storedDocEmbeddingIdsByScan = new ConcurrentHashMap<>();
 
     public VectorStoreService(EmbeddingStore<TextSegment> embeddingStore){
         this.embeddingStore = embeddingStore;
     }
 
-    public void store(List<EmbeddingChunk> embeddings) {
-        chunkByEmbeddingId.clear();
-        embeddingIdByChunkId.clear();
-        vectorByEmbeddingId.clear();
-        storedDocEmbeddingIds.clear();
-
+    public void store(String scanId, List<EmbeddingChunk> embeddings) {
         if (embeddings == null || embeddings.isEmpty()) {
             return;
         }
+
+        Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        Map<String, String> embeddingIdByChunkId = embeddingIdByChunkIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        List<String> storedDocEmbeddingIds = storedDocEmbeddingIdsByScan.computeIfAbsent(scanId, k -> new CopyOnWriteArrayList<>());
 
         for (EmbeddingChunk embeddingChunk : embeddings) {
             if (embeddingChunk == null || embeddingChunk.getChunk() == null || embeddingChunk.getEmbedding() == null) {
@@ -68,7 +70,13 @@ public class VectorStoreService {
         }
     }
 
-    public List<Chunk> findLowSimilarityChunks() {
+    public List<Chunk> findLowSimilarityChunks(String scanId) {
+        Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.get(scanId);
+        List<String> storedDocEmbeddingIds = storedDocEmbeddingIdsByScan.get(scanId);
+        Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.get(scanId);
+        if (vectorByEmbeddingId == null || storedDocEmbeddingIds == null || chunkByEmbeddingId == null) {
+            return List.of();
+        }
         List<Chunk> lowSimilarityChunks = new ArrayList<>();
         for (String docEmbeddingId : storedDocEmbeddingIds) {
             float[] queryVector = vectorByEmbeddingId.get(docEmbeddingId);
@@ -100,8 +108,11 @@ public class VectorStoreService {
         return lowSimilarityChunks;
     }
 
-    public List<Chunk> findRelatedCodeChunks(List<Chunk> docChunks, int maxResultsPerDoc) {
-        if (docChunks == null || docChunks.isEmpty()) {
+    public List<Chunk> findRelatedCodeChunks(String scanId, List<Chunk> docChunks, int maxResultsPerDoc) {
+        Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.get(scanId);
+        Map<String, String> embeddingIdByChunkId = embeddingIdByChunkIdByScan.get(scanId);
+        Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.get(scanId);
+        if (docChunks == null || docChunks.isEmpty() || vectorByEmbeddingId == null || embeddingIdByChunkId == null || chunkByEmbeddingId == null) {
             return List.of();
         }
 
@@ -151,10 +162,13 @@ public class VectorStoreService {
             if (match == null || match.embeddingId() == null) {
                 continue;
             }
-            Chunk chunk = chunkByEmbeddingId.get(match.embeddingId());
-            if (chunk != null) {
-                chunks.add(chunk);
-            }
+            // When scanning multiple scans, embedding IDs are not globally unique per scan. We search all scans.
+            chunkByEmbeddingIdByScan.values().forEach(map -> {
+                Chunk chunk = map.get(match.embeddingId());
+                if (chunk != null) {
+                    chunks.add(chunk);
+                }
+            });
         }
         return chunks;
     }
