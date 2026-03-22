@@ -1,6 +1,14 @@
 spring:
   application:
     name: sync-probe
+  datasource:
+    url: jdbc:postgresql://localhost:5432/syncprobe
+    username: jc
+    password:
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
 langchain4j:
   google-ai-gemini:
     chat-model:

@@ -2,6 +2,8 @@ package com.jonathan.syncprobe.vector;
 
 import com.jonathan.syncprobe.model.Chunk;
 import com.jonathan.syncprobe.model.EmbeddingChunk;
+import com.jonathan.syncprobe.persistence.entity.ChunkEmbeddingRecord;
+import com.jonathan.syncprobe.persistence.repository.ChunkEmbeddingRepository;
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.StringJoiner;
 
 @Service
 public class VectorStoreService {
@@ -24,14 +27,17 @@ public class VectorStoreService {
     private static final double LOW_SIMILARITY_THRESHOLD = 0.55;
 
     private final EmbeddingStore<TextSegment> embeddingStore;
+    private final ChunkEmbeddingRepository chunkEmbeddingRepository;
     // keyed by scanId to isolate multi-user scans
     private final Map<String, Map<String, Chunk>> chunkByEmbeddingIdByScan = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> embeddingIdByChunkIdByScan = new ConcurrentHashMap<>();
     private final Map<String, Map<String, float[]>> vectorByEmbeddingIdByScan = new ConcurrentHashMap<>();
     private final Map<String, List<String>> storedDocEmbeddingIdsByScan = new ConcurrentHashMap<>();
 
-    public VectorStoreService(EmbeddingStore<TextSegment> embeddingStore){
+    public VectorStoreService(EmbeddingStore<TextSegment> embeddingStore,
+                              ChunkEmbeddingRepository chunkEmbeddingRepository){
         this.embeddingStore = embeddingStore;
+        this.chunkEmbeddingRepository = chunkEmbeddingRepository;
     }
 
     public void store(String scanId, List<EmbeddingChunk> embeddings) {
@@ -67,10 +73,23 @@ public class VectorStoreService {
             if ("doc".equalsIgnoreCase(chunk.getType())) {
                 storedDocEmbeddingIds.add(embeddingId);
             }
+
+            ChunkEmbeddingRecord record = new ChunkEmbeddingRecord();
+            record.setScanId(scanId);
+            record.setChunkId(chunk.getId());
+            record.setChunkType(chunk.getType());
+            record.setPath(chunk.getPath());
+            record.setSymbol(chunk.getSymbol());
+            record.setContent(chunk.getContent());
+            record.setEmbeddingId(embeddingId);
+            record.setVector(vectorToString(vector));
+            chunkEmbeddingRepository.save(record);
         }
     }
 
     public List<Chunk> findLowSimilarityChunks(String scanId) {
+        loadCacheFromDbIfMissing(scanId);
+
         Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.get(scanId);
         List<String> storedDocEmbeddingIds = storedDocEmbeddingIdsByScan.get(scanId);
         Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.get(scanId);
@@ -109,6 +128,8 @@ public class VectorStoreService {
     }
 
     public List<Chunk> findRelatedCodeChunks(String scanId, List<Chunk> docChunks, int maxResultsPerDoc) {
+        loadCacheFromDbIfMissing(scanId);
+
         Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.get(scanId);
         Map<String, String> embeddingIdByChunkId = embeddingIdByChunkIdByScan.get(scanId);
         Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.get(scanId);
@@ -151,6 +172,10 @@ public class VectorStoreService {
             return List.of();
         }
 
+        if (chunkByEmbeddingIdByScan.isEmpty()) {
+            loadAllCachesFromDb();
+        }
+
         EmbeddingSearchRequest request = EmbeddingSearchRequest.builder()
                 .queryEmbedding(Embedding.from(toFloatArray(queryEmbedding)))
                 .maxResults(DEFAULT_SEARCH_RESULTS)
@@ -181,6 +206,33 @@ public class VectorStoreService {
         return values;
     }
 
+    private String vectorToString(float[] vector) {
+        if (vector == null || vector.length == 0) {
+            return "";
+        }
+        StringJoiner joiner = new StringJoiner(",");
+        for (float v : vector) {
+            joiner.add(Float.toString(v));
+        }
+        return joiner.toString();
+    }
+
+    private float[] stringToFloatArray(String vector) {
+        if (vector == null || vector.isBlank()) {
+            return new float[0];
+        }
+        String[] parts = vector.split(",");
+        float[] values = new float[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            try {
+                values[i] = Float.parseFloat(parts[i]);
+            } catch (NumberFormatException ex) {
+                values[i] = 0f;
+            }
+        }
+        return values;
+    }
+
     private boolean isEmptyVector(float[] vector) {
         return vector == null || vector.length == 0;
     }
@@ -196,5 +248,41 @@ public class VectorStoreService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private void loadCacheFromDbIfMissing(String scanId) {
+        if (chunkByEmbeddingIdByScan.containsKey(scanId)) {
+            return;
+        }
+        List<ChunkEmbeddingRecord> records = chunkEmbeddingRepository.findByScanId(scanId);
+        if (records.isEmpty()) {
+            return;
+        }
+        for (ChunkEmbeddingRecord record : records) {
+            cacheRecord(record);
+        }
+    }
+
+    private void loadAllCachesFromDb() {
+        chunkEmbeddingRepository.findAll().forEach(this::cacheRecord);
+    }
+
+    private void cacheRecord(ChunkEmbeddingRecord record) {
+        String scanId = record.getScanId();
+        Map<String, Chunk> chunkByEmbeddingId = chunkByEmbeddingIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        Map<String, String> embeddingIdByChunkId = embeddingIdByChunkIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        Map<String, float[]> vectorByEmbeddingId = vectorByEmbeddingIdByScan.computeIfAbsent(scanId, k -> new ConcurrentHashMap<>());
+        List<String> storedDocEmbeddingIds = storedDocEmbeddingIdsByScan.computeIfAbsent(scanId, k -> new CopyOnWriteArrayList<>());
+
+        Chunk chunk = new Chunk(record.getChunkId(), record.getContent(), record.getChunkType(), record.getSymbol(), record.getPath());
+        chunkByEmbeddingId.put(record.getEmbeddingId(), chunk);
+        if (chunk.getId() != null && !chunk.getId().isBlank()) {
+            embeddingIdByChunkId.put(chunk.getId(), record.getEmbeddingId());
+        }
+        float[] vector = stringToFloatArray(record.getVector());
+        vectorByEmbeddingId.put(record.getEmbeddingId(), vector);
+        if ("doc".equalsIgnoreCase(chunk.getType())) {
+            storedDocEmbeddingIds.add(record.getEmbeddingId());
+        }
     }
 }
