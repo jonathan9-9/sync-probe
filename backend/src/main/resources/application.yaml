@@ -16,9 +16,8 @@ langchain4j:
       model-name: gemini-2.5-flash
     embedding-model:
       api-key: ${GEMINI_API_KEY}
-      model-name: text-embedding-004
+      model-name: gemini-embedding-001
 chroma:
   base-url: http://127.0.0.1:8000
-
 
 

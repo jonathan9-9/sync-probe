@@ -7,6 +7,8 @@ import com.jonathan.syncprobe.persistence.entity.ScanRecord;
 import com.jonathan.syncprobe.persistence.repository.ScanRecordRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class ScanJobService {
+    private static final Logger log = LoggerFactory.getLogger(ScanJobService.class);
 
     private final ScanOrchestrator scanOrchestrator;
     private final Map<String, ScanJobStatus> statusById = new ConcurrentHashMap<>();
@@ -54,9 +57,11 @@ public class ScanJobService {
 
             persistSuccess(id, result);
         } catch (Exception ex) {
-            errorById.put(id, ex.getMessage());
+            String errorMessage = buildErrorMessage(ex);
+            log.error("Scan job failed. scanId={} repoUrl={} error={}", id, repoUrl, errorMessage, ex);
+            errorById.put(id, errorMessage);
             statusById.put(id, ScanJobStatus.FAILED);
-            persistFailure(id, ex.getMessage());
+            persistFailure(id, errorMessage);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -123,5 +128,22 @@ public class ScanJobService {
         } catch (JsonProcessingException e) {
             return null;
         }
+    }
+
+    private String buildErrorMessage(Exception ex) {
+        String base = ex.getMessage() == null || ex.getMessage().isBlank()
+                ? ex.getClass().getSimpleName()
+                : ex.getMessage();
+
+        Throwable root = ex;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+
+        String rootMessage = root.getMessage();
+        if (rootMessage == null || rootMessage.isBlank() || root == ex) {
+            return base;
+        }
+        return base + " | Root cause: " + root.getClass().getSimpleName() + ": " + rootMessage;
     }
 }

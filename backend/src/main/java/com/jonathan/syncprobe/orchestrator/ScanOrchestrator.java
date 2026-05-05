@@ -4,8 +4,8 @@ import com.jonathan.syncprobe.model.*;
 import com.jonathan.syncprobe.service.ChunkingService;
 import com.jonathan.syncprobe.service.CodeIngestionService;
 import com.jonathan.syncprobe.service.EmbeddingService;
-import com.jonathan.syncprobe.service.GitRepoIngestionService;
 import com.jonathan.syncprobe.service.MarkdownDocIngestionService;
+import com.jonathan.syncprobe.service.RepoIngestionService;
 import com.jonathan.syncprobe.service.SuggestionService;
 import com.jonathan.syncprobe.vector.VectorStoreService;
 import org.springframework.stereotype.Service;
@@ -17,7 +17,7 @@ import java.util.List;
 @Service
 public class ScanOrchestrator {
 
-    private final GitRepoIngestionService repoIngestionService;
+    private final RepoIngestionService repoIngestionService;
     private final MarkdownDocIngestionService markdownDocIngestionService;
     private final CodeIngestionService codeIngestionService;
     private final ChunkingService chunkingService;
@@ -26,7 +26,7 @@ public class ScanOrchestrator {
     private final SuggestionService suggestionService;
 
     public ScanOrchestrator(
-            GitRepoIngestionService repoIngestionService,
+            RepoIngestionService repoIngestionService,
             MarkdownDocIngestionService markdownDocIngestionService,
             CodeIngestionService codeIngestionService,
             ChunkingService chunkingService,
@@ -48,28 +48,32 @@ public class ScanOrchestrator {
     }
 
     public ScanResult runScan(String scanId, String repoUrl) {
+        Path repoPath = null;
+        try {
+            // 1. Clone repo
+            repoPath = repoIngestionService.ingestRepository(repoUrl);
 
-        // 1. Clone repo
-        Path repoPath = repoIngestionService.ingestRepository(repoUrl);
+            // 2. Parse markdown docs
+            List<DocChunk> docs = markdownDocIngestionService.parseDocs(repoPath);
+            List<CodeChunk> codeChunks = codeIngestionService.parseCode(repoPath);
 
-        // 2. Parse markdown docs
-        List<DocChunk> docs = markdownDocIngestionService.parseDocs(repoPath);
-        List<CodeChunk> codeChunks = codeIngestionService.parseCode(repoPath);
+            List<Chunk> chunks = new ArrayList<>();
+            chunks.addAll(chunkingService.chunkDocuments(docs));
+            chunks.addAll(codeChunks);
 
-        List<Chunk> chunks = new ArrayList<>();
-        chunks.addAll(chunkingService.chunkDocuments(docs));
-        chunks.addAll(codeChunks);
+            List<EmbeddingChunk> embeddings = embeddingService.embedChunks(chunks);
 
-        List<EmbeddingChunk> embeddings = embeddingService.embedChunks(chunks);
+            vectorStoreService.store(scanId, embeddings);
 
-        vectorStoreService.store(scanId, embeddings);
+            List<Chunk> staleDocs = vectorStoreService.findLowSimilarityChunks(scanId);
+            List<Chunk> relatedCodeChunks = vectorStoreService.findRelatedCodeChunks(scanId, staleDocs, 3);
 
-        List<Chunk> staleDocs = vectorStoreService.findLowSimilarityChunks(scanId);
-        List<Chunk> relatedCodeChunks = vectorStoreService.findRelatedCodeChunks(scanId, staleDocs, 3);
+            List<Suggestion> suggestions = suggestionService.generateFixes(staleDocs, relatedCodeChunks);
 
-        List<Suggestion> suggestions = suggestionService.generateFixes(staleDocs, relatedCodeChunks);
-
-        return new ScanResult(suggestions);
+            return new ScanResult(suggestions);
+        } finally {
+            repoIngestionService.cleanupRepository(repoPath);
+        }
     }
 
     /**

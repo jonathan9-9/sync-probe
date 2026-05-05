@@ -4,6 +4,8 @@ import com.jonathan.syncprobe.model.Chunk;
 import com.jonathan.syncprobe.model.EmbeddingChunk;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.List;
 // langchain4j embedding to generate embeddings
 @Service
 public class EmbeddingService {
+    private static final Logger log = LoggerFactory.getLogger(EmbeddingService.class);
     private final EmbeddingModel embeddingModel;
 
     public EmbeddingService(EmbeddingModel embeddingModel) {
@@ -25,7 +28,8 @@ public class EmbeddingService {
         }
 
         for (Chunk chunk : chunks) {
-            double[] vector = embedContent(chunk == null ? null : chunk.getContent());
+            String content = chunk == null ? null : chunk.getContent();
+            double[] vector = embedContent(content, chunk);
             EmbeddingChunk embeddingChunk = new EmbeddingChunk(chunk, vector);
             embeddings.add(embeddingChunk);
         }
@@ -33,10 +37,10 @@ public class EmbeddingService {
     }
 
     public double[] embedText(String text) {
-        return embedContent(text);
+        return embedContent(text, null);
     }
 
-    private double[] embedContent(String content) {
+    private double[] embedContent(String content, Chunk chunk) {
         if (content == null || content.isBlank()) {
             return new double[]{0.0};
         }
@@ -51,7 +55,22 @@ public class EmbeddingService {
             }
             return dense;
         } catch (RuntimeException e) {
-            throw new RuntimeException("Failed to generate embedding for provided text", e);
+            String context = chunkContext(chunk, content);
+            log.error("Embedding generation failed. {}", context, e);
+            throw new RuntimeException("Failed to generate embedding for provided text. " + context, e);
         }
+    }
+
+    private String chunkContext(Chunk chunk, String content) {
+        int length = content == null ? 0 : content.length();
+        if (chunk == null) {
+            return "context={type=query,path=unknown,id=unknown,length=" + length + "}";
+        }
+
+        String id = chunk.getId() == null ? "unknown" : chunk.getId();
+        String path = chunk.getPath() == null ? "unknown" : chunk.getPath();
+        String type = chunk.getType() == null ? "unknown" : chunk.getType();
+        String symbol = chunk.getSymbol() == null ? "unknown" : chunk.getSymbol();
+        return "context={type=" + type + ",path=" + path + ",id=" + id + ",symbol=" + symbol + ",length=" + length + "}";
     }
 }

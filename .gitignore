@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# SyncProbe local cloned repositories (do not track)
+repos/
